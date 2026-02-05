@@ -29,7 +29,7 @@ def place_ship(field, ships, row, col, health):
 
 
 def player_place_ships(field, ships):
-    print("Place your ships (row col)")
+    print("\nAdmiral, the sea awaits your genius. Deploy the fleet (row col). Try not to embarrass the navy.")
     for health in SHIP_HEALTHS:
         while True:
             print_field(field)
@@ -37,7 +37,7 @@ def player_place_ships(field, ships):
             if 0 <= r < FIELD_SIZE and 0 <= c < FIELD_SIZE:
                 if place_ship(field, ships, r, c, health):
                     break
-            print("Invalid position, try again.")
+            print("That position is either occupied or you can't read coordinates. Try again, strategist.")
 
 
 def computer_place_ships(field, ships):
@@ -93,29 +93,29 @@ while True:
 
     while player_ships and computer_ships:
         if player_turn:
-            print("\nYour turn")
+            print("\nYour turn, Admiral. Try to look like you know naval warfare.")
             print_field(computer_field, hide_ships=True)
-            r, c = map(int, input("Shoot (row col): ").split())
+            r, c = map(int, input("Give firing coordinates (row col), and may Neptune forgive you: ").split())
             result = shoot(computer_field, computer_ships, r, c)
 
             if result == "hit":
-                print("Hit! The ship is damaged but still afloat.")
+                print("Direct hit! Somewhere, a sailor just reconsidered his career choices.")
             elif result == "destroyed":
-                print("Ship destroyed!")
+                print("Ship obliterated.")
             elif result == "miss":
-                print("Missed!")
+                print("You hit water. Impressive. The ocean remains undefeated.")
             elif result == "repeat":
-                print("You already shot there!")
+                print("You already fired there. Memory issues this early in the battle?")
         else:
             r = random.randint(0, FIELD_SIZE - 1)
             c = random.randint(0, FIELD_SIZE - 1)
-            print(f"\nComputer shoots {r} {c}")
+            print(f"\nEnemy fleet fires at {r} {c}. They look suspiciously more competent.")
             result = shoot(player_field, player_ships, r, c)
 
             if result == "hit":
-                print("Your ship was hit!")
+                print("We've been hit! The crew is panicking and someone dropped the coffee.")
             elif result == "destroyed":
-                print("One of your ships was destroyed!")
+                print("A ship has been lost. Write a heartfelt letter to the families.")
             elif result == "miss":
                 print("Computer missed.")
 
@@ -123,18 +123,18 @@ while True:
 
     # --- GAME OVER ---
     if player_ships:
-        print("\n You win!")
+        print("\nVictory! The enemy retreats. You may now pretend this was skill.")
     else:
-        print("\n Computer wins!")
+        print("\nDefeat. The navy politely asks you to never command again.")
 
     while True:
         choice = input("Play again? [y / n]: ").lower()
 
         if choice == "y":
-            print("Bring it on...\n")
+            print("Resetting the battlefield. History will repeat itself.\n")
             break
         elif choice == "n":
-            print("Game over. Get out of the pool.")
+            print("Game over. The ocean is closed for today.")
             exit()
         else:
-            print("You had two clear options captain. How are you in command?.")
+            print("There were exactly two choices. Command may not be your calling.")

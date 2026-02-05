@@ -1,120 +1,120 @@
-import random
+import tkinter as tk
 
 FIELD_SIZE = 5
-SHIP_HEALTHS = [2, 2, 3, 4, 5]
-
+CELL_SIZE = 50
 
 def create_empty_field():
     return [["." for _ in range(FIELD_SIZE)] for _ in range(FIELD_SIZE)]
 
 
-def print_field(field, hide_ships=False):
-    print("  0 1 2 3 4")
-    for i, row in enumerate(field):
-        print(i, end=" ")
-        for cell in row:
-            if hide_ships and cell == "S":
-                print(".", end=" ")
-            else:
-                print(cell, end=" ")
-        print()
+class BattleshipsUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Battleships Command Console")
+        self.field = create_empty_field()
 
+        self.canvas = tk.Canvas(root,
+                                width=(FIELD_SIZE + 1) * CELL_SIZE,
+                                height=(FIELD_SIZE + 1) * CELL_SIZE,
+                                bg="#0f172a",
+                                highlightthickness=0)
+        self.canvas.grid(row=0, column=0, columnspan=4, padx=20, pady=20)
 
-def place_ship(field, ships, row, col, health):
-    if field[row][col] == ".":
-        field[row][col] = "S"
-        ships[(row, col)] = health
-        return True
-    return False
+        self.draw_grid()
 
+        tk.Label(root, text="X:", fg="white", bg="#0f172a").grid(row=1, column=0)
+        self.x_entry = tk.Entry(root, width=5)
+        self.x_entry.grid(row=1, column=1)
 
-def player_place_ships(field, ships):
-    print("Place your ships (row col)")
-    for health in SHIP_HEALTHS:
-        while True:
-            print_field(field)
-            r, c = map(int, input(f"Ship with {health} HP: ").split())
+        tk.Label(root, text="Y:", fg="white", bg="#0f172a").grid(row=1, column=2)
+        self.y_entry = tk.Entry(root, width=5)
+        self.y_entry.grid(row=1, column=3)
+
+        tk.Button(root, text="Place Ship", command=self.place_ship).grid(row=2, column=0, columnspan=2, pady=10)
+        tk.Button(root, text="Fire", command=self.fire).grid(row=2, column=2, columnspan=2)
+
+        self.message = tk.Label(root, text="Welcome Admiral.", fg="white", bg="#0f172a")
+        self.message.grid(row=3, column=0, columnspan=4, pady=10)
+
+        root.configure(bg="#0f172a")
+
+    def draw_grid(self):
+        self.canvas.delete("all")
+
+        # Axes
+        for i in range(FIELD_SIZE):
+            # Top X axis
+            self.canvas.create_text((i + 1.5) * CELL_SIZE, CELL_SIZE / 2,
+                                    text=str(i), fill="lightgray", font=("Arial", 12))
+
+            # Left Y axis
+            self.canvas.create_text(CELL_SIZE / 2, (i + 1.5) * CELL_SIZE,
+                                    text=str(i), fill="lightgray", font=("Arial", 12))
+
+        # Cells
+        for r in range(FIELD_SIZE):
+            for c in range(FIELD_SIZE):
+                x1 = (c + 1) * CELL_SIZE
+                y1 = (r + 1) * CELL_SIZE
+                x2 = x1 + CELL_SIZE
+                y2 = y1 + CELL_SIZE
+
+                cell = self.field[r][c]
+
+                color = {
+                    ".": "#1e293b",
+                    "S": "#1d4ed8",
+                    "X": "#b91c1c",
+                    "O": "#334155"
+                }[cell]
+
+                self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="#0ea5e9")
+
+    def get_coords(self):
+        try:
+            r = int(self.x_entry.get())
+            c = int(self.y_entry.get())
             if 0 <= r < FIELD_SIZE and 0 <= c < FIELD_SIZE:
-                if place_ship(field, ships, r, c, health):
-                    break
-            print("Invalid position, try again.")
+                return r, c
+        except ValueError:
+            pass
+        return None
 
+    def place_ship(self):
+        coords = self.get_coords()
+        if not coords:
+            self.message.config(text="Invalid coordinates.")
+            return
 
-def computer_place_ships(field, ships):
-    for health in SHIP_HEALTHS:
-        while True:
-            r = random.randint(0, FIELD_SIZE - 1)
-            c = random.randint(0, FIELD_SIZE - 1)
-            if place_ship(field, ships, r, c, health):
-                break
-
-
-def shoot(field, ships, row, col):
-    # If there's a ship here, apply damage
-    if (row, col) in ships:
-        ships[(row, col)] -= 1
-
-        if ships[(row, col)] == 0:
-            del ships[(row, col)]
-            field[row][col] = "X"
-            return "destroyed"
+        r, c = coords
+        if self.field[r][c] == ".":
+            self.field[r][c] = "S"
+            self.message.config(text=f"Ship placed at ({r},{c})")
         else:
-            field[row][col] = "H"
-            return "hit"
+            self.message.config(text="Cell already occupied.")
 
-    # No ship here
-    if field[row][col] in ["O", "X"]:
-        return "repeat"
+        self.draw_grid()
 
-    field[row][col] = "O"
-    return "miss"
+    def fire(self):
+        coords = self.get_coords()
+        if not coords:
+            self.message.config(text="Invalid coordinates.")
+            return
+
+        r, c = coords
+        if self.field[r][c] == "S":
+            self.field[r][c] = "X"
+            self.message.config(text="Hit!")
+        elif self.field[r][c] == ".":
+            self.field[r][c] = "O"
+            self.message.config(text="Miss.")
+        else:
+            self.message.config(text="Already targeted.")
+
+        self.draw_grid()
 
 
-# --- GAME SETUP ---
-player_field = create_empty_field()
-computer_field = create_empty_field()
-
-player_ships = {}
-computer_ships = {}
-
-player_place_ships(player_field, player_ships)
-computer_place_ships(computer_field, computer_ships)
-
-# --- GAME LOOP ---
-player_turn = True
-
-while player_ships and computer_ships:
-    if player_turn:
-        print("\nYour turn")
-        print_field(computer_field, hide_ships=True)
-        r, c = map(int, input("Shoot (row col): ").split())
-        result = shoot(computer_field, computer_ships, r, c)
-
-        if result == "hit":
-            print("Hit! The ship is damaged but still afloat.")
-        elif result == "destroyed":
-            print("Ship destroyed!")
-        elif result == "miss":
-            print("Missed!")
-        elif result == "repeat":
-            print("You already shot there!")
-    else:
-        r = random.randint(0, FIELD_SIZE - 1)
-        c = random.randint(0, FIELD_SIZE - 1)
-        print(f"\nComputer shoots {r} {c}")
-        result = shoot(player_field, player_ships, r, c)
-
-        if result == "hit":
-            print("Your ship was hit!")
-        elif result == "destroyed":
-            print("One of your ships was destroyed!")
-        elif result == "miss":
-            print("Computer missed.")
-
-    player_turn = not player_turn
-
-# --- GAME OVER ---
-if player_ships:
-    print("\n You win!")
-else:
-    print("\n Computer wins!")
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = BattleshipsUI(root)
+    root.mainloop()
