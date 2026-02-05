@@ -63,58 +63,78 @@ def shoot(field, ships, row, col):
             return "hit"
 
     # No ship here
-    if field[row][col] in ["O", "X"]:
+    if field[row][col] in ["O", "X", "H"]:
         return "repeat"
+    else:
+        while True:
+            r = random.randint(0, FIELD_SIZE - 1)
+            c = random.randint(0, FIELD_SIZE - 1)
+            result = shoot(player_field, player_ships, r, c)
+            if result != "repeat":
+                break
 
     field[row][col] = "O"
     return "miss"
 
 
 # --- GAME SETUP ---
-player_field = create_empty_field()
-computer_field = create_empty_field()
+while True:
+    player_field = create_empty_field()
+    computer_field = create_empty_field()
 
-player_ships = {}
-computer_ships = {}
+    player_ships = {}
+    computer_ships = {}
 
-player_place_ships(player_field, player_ships)
-computer_place_ships(computer_field, computer_ships)
+    player_place_ships(player_field, player_ships)
+    computer_place_ships(computer_field, computer_ships)
 
-# --- GAME LOOP ---
-player_turn = True
+    # --- GAME LOOP ---
+    player_turn = True
 
-while player_ships and computer_ships:
-    if player_turn:
-        print("\nYour turn")
-        print_field(computer_field, hide_ships=True)
-        r, c = map(int, input("Shoot (row col): ").split())
-        result = shoot(computer_field, computer_ships, r, c)
+    while player_ships and computer_ships:
+        if player_turn:
+            print("\nYour turn")
+            print_field(computer_field, hide_ships=True)
+            r, c = map(int, input("Shoot (row col): ").split())
+            result = shoot(computer_field, computer_ships, r, c)
 
-        if result == "hit":
-            print("Hit! The ship is damaged but still afloat.")
-        elif result == "destroyed":
-            print("Ship destroyed!")
-        elif result == "miss":
-            print("Missed!")
-        elif result == "repeat":
-            print("You already shot there!")
+            if result == "hit":
+                print("Hit! The ship is damaged but still afloat.")
+            elif result == "destroyed":
+                print("Ship destroyed!")
+            elif result == "miss":
+                print("Missed!")
+            elif result == "repeat":
+                print("You already shot there!")
+        else:
+            r = random.randint(0, FIELD_SIZE - 1)
+            c = random.randint(0, FIELD_SIZE - 1)
+            print(f"\nComputer shoots {r} {c}")
+            result = shoot(player_field, player_ships, r, c)
+
+            if result == "hit":
+                print("Your ship was hit!")
+            elif result == "destroyed":
+                print("One of your ships was destroyed!")
+            elif result == "miss":
+                print("Computer missed.")
+
+        player_turn = not player_turn
+
+    # --- GAME OVER ---
+    if player_ships:
+        print("\n You win!")
     else:
-        r = random.randint(0, FIELD_SIZE - 1)
-        c = random.randint(0, FIELD_SIZE - 1)
-        print(f"\nComputer shoots {r} {c}")
-        result = shoot(player_field, player_ships, r, c)
+        print("\n Computer wins!")
 
-        if result == "hit":
-            print("Your ship was hit!")
-        elif result == "destroyed":
-            print("One of your ships was destroyed!")
-        elif result == "miss":
-            print("Computer missed.")
+    while True:
+        choice = input("Play again? [y / n]: ").lower()
 
-    player_turn = not player_turn
-
-# --- GAME OVER ---
-if player_ships:
-    print("\n You win!")
-else:
-    print("\n Computer wins!")
+        if choice == "y":
+            print("Bring it on...\n")
+            break
+        elif choice == "n":
+            print("Game over. Get out of the pool.")
+            exit()
+        else:
+            print("You had two clear options captain. How are you in command?.")
