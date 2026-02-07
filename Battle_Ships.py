@@ -1,140 +1,299 @@
+import tkinter as tk
 import random
+import string
 
-FIELD_SIZE = 5
-SHIP_HEALTHS = [2, 2, 3, 4, 5]
+FIELD_SIZE = 10
+CELL = 35
+LETTERS = string.ascii_uppercase[:FIELD_SIZE]
+
+SHIPS_INFO = [
+    ("Aircraft Carrier", 5),
+    ("Battleship", 4),
+    ("Cruiser", 3),
+    ("Submarine", 3),
+    ("Destroyer", 2),
+]
 
 
 def create_empty_field():
     return [["." for _ in range(FIELD_SIZE)] for _ in range(FIELD_SIZE)]
 
 
-def print_field(field, hide_ships=False):
-    print("  0 1 2 3 4")
-    for i, row in enumerate(field):
-        print(i, end=" ")
-        for cell in row:
-            if hide_ships and cell == "S":
-                print(".", end=" ")
-            else:
-                print(cell, end=" ")
-        print()
+def can_place_ship(field, row, col, length, direction):
+    cells = []
+    for i in range(length):
+        r = row + (i if direction == "V" else 0)
+        c = col + (i if direction == "H" else 0)
+
+        if r >= FIELD_SIZE or c >= FIELD_SIZE:
+            return None
+        if field[r][c] != ".":
+            return None
+
+        cells.append((r, c))
+    return cells
 
 
-def place_ship(field, ships, row, col, health):
-    if field[row][col] == ".":
-        field[row][col] = "S"
-        ships[(row, col)] = health
-        return True
-    return False
+def place_ship(field, ships, name, row, col, length, direction):
+    cells = can_place_ship(field, row, col, length, direction)
+    if not cells:
+        return False
 
+    for r, c in cells:
+        field[r][c] = "S"
 
-def player_place_ships(field, ships):
-    print("\nAdmiral, the sea awaits your genius. Deploy the fleet (row col). Try not to embarrass the navy.")
-    for health in SHIP_HEALTHS:
-        while True:
-            print_field(field)
-            r, c = map(int, input(f"Ship with {health} HP: ").split())
-            if 0 <= r < FIELD_SIZE and 0 <= c < FIELD_SIZE:
-                if place_ship(field, ships, r, c, health):
-                    break
-            print("That position is either occupied or you can't read coordinates. Try again, strategist.")
-
-
-def computer_place_ships(field, ships):
-    for health in SHIP_HEALTHS:
-        while True:
-            r = random.randint(0, FIELD_SIZE - 1)
-            c = random.randint(0, FIELD_SIZE - 1)
-            if place_ship(field, ships, r, c, health):
-                break
+    ships.append({
+        "name": name,
+        "cells": cells,
+        "hits": set()
+    })
+    return True
 
 
 def shoot(field, ships, row, col):
-    # If there's a ship here, apply damage
-    if (row, col) in ships:
-        ships[(row, col)] -= 1
+    if field[row][col] in ["O", "H", "X"]:
+        return "repeat", None
 
-        if ships[(row, col)] == 0:
-            del ships[(row, col)]
-            field[row][col] = "X"
-            return "destroyed"
-        else:
+    for ship in ships:
+        if (row, col) in ship["cells"]:
+            ship["hits"].add((row, col))
             field[row][col] = "H"
-            return "hit"
 
-    # No ship here
-    if field[row][col] in ["O", "X", "H"]:
-        return "repeat"
-    else:
+            if len(ship["hits"]) == len(ship["cells"]):
+                for r, c in ship["cells"]:
+                    field[r][c] = "X"
+                ships.remove(ship)
+                return "destroyed", ship["name"]
+
+            return "hit", ship["name"]
+
+    field[row][col] = "O"
+    return "miss", None
+
+
+class GameUI:
+    def __init__(self, root):
+        self.root = root
+        root.title("Battleship")
+        root.configure(bg="#0f172a")
+
+        self.player_msg = tk.Label(root, fg="#38bdf8", bg="#0f172a",
+                                   font=("Arial", 11), wraplength=700, justify="left")
+        self.player_msg.pack(pady=4)
+
+        self.computer_msg = tk.Label(root, fg="#f87171", bg="#0f172a",
+                                     font=("Arial", 11), wraplength=700, justify="left")
+        self.computer_msg.pack(pady=4)
+
+        boards = tk.Frame(root, bg="#0f172a")
+        boards.pack()
+
+        self.player_canvas = tk.Canvas(boards, width=420, height=420,
+                                       bg="#0f172a", highlightthickness=0)
+        self.player_canvas.grid(row=0, column=0, padx=20)
+
+        self.enemy_canvas = tk.Canvas(boards, width=420, height=420,
+                                      bg="#0f172a", highlightthickness=0)
+        self.enemy_canvas.grid(row=0, column=1, padx=20)
+
+        self.restart_btn = tk.Button(root, text="Restart Battle",
+                                     command=self.reset_game)
+        self.restart_btn.pack(pady=10)
+
+        self.player_canvas.bind("<Button-1>", self.place_horizontal)
+        self.player_canvas.bind("<Button-3>", self.place_vertical)
+        self.enemy_canvas.bind("<Button-1>", self.player_shoot)
+
+        self.reset_game()
+
+    def reset_game(self):
+        self.player_field = create_empty_field()
+        self.enemy_field = create_empty_field()
+
+        self.player_ships = []
+        self.enemy_ships = []
+
+        self.phase = "placement"
+        self.ship_index = 0
+
+        self.place_enemy_ships()
+        self.update_player_message()
+        self.update_computer_message("")
+        self.draw_boards()
+
+    def place_enemy_ships(self):
+        for name, length in SHIPS_INFO:
+            while True:
+                r = random.randint(0, FIELD_SIZE - 1)
+                c = random.randint(0, FIELD_SIZE - 1)
+                direction = random.choice(["H", "V"])
+                if place_ship(self.enemy_field, self.enemy_ships,
+                              name, r, c, length, direction):
+                    break
+
+    def draw_board(self, canvas, field, hide=False):
+        canvas.delete("all")
+
+        for i in range(FIELD_SIZE):
+            canvas.create_text((i + 1.5) * CELL, CELL / 2,
+                               text=LETTERS[i], fill="gray")
+            canvas.create_text(CELL / 2, (i + 1.5) * CELL,
+                               text=str(i), fill="gray")
+
+        for r in range(FIELD_SIZE):
+            for c in range(FIELD_SIZE):
+                x1 = (c + 1) * CELL
+                y1 = (r + 1) * CELL
+                x2 = x1 + CELL
+                y2 = y1 + CELL
+
+                cell = field[r][c]
+                if hide and cell == "S":
+                    cell = "."
+
+                colors = {
+                    ".": "#1e293b",
+                    "S": "#1d4ed8",
+                    "H": "#f59e0b",
+                    "X": "#b91c1c",
+                    "O": "#334155",
+                }
+
+                canvas.create_rectangle(x1, y1, x2, y2,
+                                        fill=colors[cell],
+                                        outline="#0ea5e9")
+
+    def draw_boards(self):
+        self.draw_board(self.player_canvas, self.player_field)
+        self.draw_board(self.enemy_canvas, self.enemy_field, hide=True)
+
+    def get_cell(self, event):
+        col = event.x // CELL - 1
+        row = event.y // CELL - 1
+        if 0 <= row < FIELD_SIZE and 0 <= col < FIELD_SIZE:
+            return row, col
+        return None
+
+    def update_player_message(self, text=None):
+        if text:
+            self.player_msg.config(text=f"Player: {text}")
+        else:
+            if self.phase == "placement":
+                name, length = SHIPS_INFO[self.ship_index]
+                self.player_msg.config(
+                    text=f"Player: Deploy {name} ({length} cells). "
+                         f"Left click = Horizontal, Right click = Vertical."
+                )
+            elif self.phase == "battle":
+                self.player_msg.config(
+                    text="Player: Your turn, Admiral. Try to look competent."
+                )
+
+    def update_computer_message(self, text):
+        self.computer_msg.config(text=f"Computer: {text}")
+
+    def place_ship_ui(self, event, direction):
+        if self.phase != "placement":
+            return
+
+        cell = self.get_cell(event)
+        if not cell:
+            return
+
+        r, c = cell
+        name, length = SHIPS_INFO[self.ship_index]
+
+        if place_ship(self.player_field, self.player_ships,
+                      name, r, c, length, direction):
+            self.ship_index += 1
+            if self.ship_index == len(SHIPS_INFO):
+                self.phase = "battle"
+                self.update_player_message(
+                    "All ships deployed. The sea awaits poor decisions."
+                )
+            else:
+                self.update_player_message()
+        else:
+            self.update_player_message(
+                "That placement makes no sense. Even the ocean disagrees."
+            )
+
+        self.draw_boards()
+
+    def place_horizontal(self, event):
+        self.place_ship_ui(event, "H")
+
+    def place_vertical(self, event):
+        self.place_ship_ui(event, "V")
+
+    def player_shoot(self, event):
+        if self.phase != "battle":
+            return
+
+        cell = self.get_cell(event)
+        if not cell:
+            return
+
+        r, c = cell
+        result, ship = shoot(self.enemy_field, self.enemy_ships, r, c)
+
+        if result == "repeat":
+            self.update_player_message(
+                "You already fired there. Memory is optional, apparently."
+            )
+            return
+
+        if result == "hit":
+            self.update_player_message(
+                f"Direct hit on {ship}!"
+            )
+        elif result == "destroyed":
+            self.update_player_message(
+                f"You destroyed the {ship}. Insurance refuses comment."
+            )
+        else:
+            self.update_player_message(
+                "You hit water. The ocean remains undefeated."
+            )
+
+        self.draw_boards()
+
+        if not self.enemy_ships:
+            self.update_player_message(
+                "Victory! You may now pretend this was skill."
+            )
+            self.phase = "over"
+            return
+
+        self.root.after(600, self.computer_turn)
+
+    def computer_turn(self):
         while True:
             r = random.randint(0, FIELD_SIZE - 1)
             c = random.randint(0, FIELD_SIZE - 1)
-            result = shoot(player_field, player_ships, r, c)
+            result, ship = shoot(self.player_field, self.player_ships, r, c)
             if result != "repeat":
                 break
 
-    field[row][col] = "O"
-    return "miss"
-
-
-# --- GAME SETUP ---
-while True:
-    player_field = create_empty_field()
-    computer_field = create_empty_field()
-
-    player_ships = {}
-    computer_ships = {}
-
-    player_place_ships(player_field, player_ships)
-    computer_place_ships(computer_field, computer_ships)
-
-    # --- GAME LOOP ---
-    player_turn = True
-
-    while player_ships and computer_ships:
-        if player_turn:
-            print("\nYour turn, Admiral. Try to look like you know naval warfare.")
-            print_field(computer_field, hide_ships=True)
-            r, c = map(int, input("Give firing coordinates (row col), and may Neptune forgive you: ").split())
-            result = shoot(computer_field, computer_ships, r, c)
-
-            if result == "hit":
-                print("Direct hit! Somewhere, a sailor just reconsidered his career choices.")
-            elif result == "destroyed":
-                print("Ship obliterated.")
-            elif result == "miss":
-                print("You hit water. Impressive. The ocean remains undefeated.")
-            elif result == "repeat":
-                print("You already fired there. Memory issues this early in the battle?")
+        if result == "hit":
+            msg = f"Computer hit your {ship}. Mild panic onboard."
+        elif result == "destroyed":
+            msg = f"Computer destroyed your {ship}. Write to the families."
         else:
-            r = random.randint(0, FIELD_SIZE - 1)
-            c = random.randint(0, FIELD_SIZE - 1)
-            print(f"\nEnemy fleet fires at {r} {c}. They look suspiciously more competent.")
-            result = shoot(player_field, player_ships, r, c)
+            msg = "Computer shoots water. Inspirational incompetence."
 
-            if result == "hit":
-                print("We've been hit! The crew is panicking and someone dropped the coffee.")
-            elif result == "destroyed":
-                print("A ship has been lost. Write a heartfelt letter to the families.")
-            elif result == "miss":
-                print("Computer missed.")
+        self.update_computer_message(msg)
+        self.draw_boards()
 
-        player_turn = not player_turn
-
-    # --- GAME OVER ---
-    if player_ships:
-        print("\nVictory! The enemy retreats. You may now pretend this was skill.")
-    else:
-        print("\nDefeat. The navy politely asks you to never command again.")
-
-    while True:
-        choice = input("Play again? [y / n]: ").lower()
-
-        if choice == "y":
-            print("Resetting the battlefield. History will repeat itself.\n")
-            break
-        elif choice == "n":
-            print("Game over. The ocean is closed for today.")
-            exit()
+        if not self.player_ships:
+            self.update_player_message(
+                "Defeat. The navy politely asks you to never command again."
+            )
+            self.phase = "over"
         else:
-            print("There were exactly two choices. Command may not be your calling.")
+            self.update_player_message()
+
+
+root = tk.Tk()
+GameUI(root)
+root.mainloop()
